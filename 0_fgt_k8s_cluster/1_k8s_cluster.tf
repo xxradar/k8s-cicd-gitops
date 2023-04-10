@@ -42,7 +42,7 @@ resource "aws_eip" "node_worker_eip" {
 # Deploy cluster master node
 module "node_master" {
   depends_on = [module.fgt]
-  source     = "./modules/new-instance"
+  source     = "git::github.com/jmvigueras/modules//aws//new-instance_ni"
 
   prefix  = "${local.prefix}-master"
   keypair = aws_key_pair.keypair.key_name
@@ -58,7 +58,7 @@ module "node_master" {
 module "node_worker" {
   depends_on = [module.fgt, module.node_master, aws_ssm_parameter.master_private_host, aws_ssm_parameter.master_public_host, aws_ssm_parameter.master_token, aws_ssm_parameter.master_ca_cert]
   count      = local.worker_number
-  source     = "./modules/new-instance"
+  source     = "git::github.com/jmvigueras/modules//aws//new-instance_ni"
 
   prefix  = "${local.prefix}-worker"
   suffix  = count.index + 1
