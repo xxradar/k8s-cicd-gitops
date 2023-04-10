@@ -1,0 +1,82 @@
+name: FortiDevSec Scanner CI 
+on:
+  push:
+   branches: [ master ]
+  pull_request:
+   branches: [ master ]
+ 
+jobs:
+  testing:
+   runs-on: ubuntu-latest    
+   steps:
+   - uses: actions/checkout@v2
+   - name: 'Install Node'
+     uses: actions/setup-node@v1
+   - name: Start app
+     run: npm start &
+   - name: "Run Test"
+     run:  curl http://127.0.0.1:8081
+  
+  #scanning:
+  #  needs: testing
+  #  runs-on: ubuntu-latest
+  #  steps:
+  #  - uses: actions/checkout@v2
+  #  - name: SAST
+  #    run: |
+  #     docker pull registry.fortidevsec.forticloud.com/fdevsec_sast:latest
+  #     docker run -i --mount type=bind,source="$(pwd)",target=/scan  registry.fortidevsec.forticloud.com/fdevsec_sast:latest
+      
+  docker:
+    # needs: scanning
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      - name: Login to DockerHub
+        uses: docker/login-action@v1
+        with:
+          username: $${{ secrets.DOCKERHUB_USERNAME }}
+          password: $${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          push: true
+          tags: ${dockerhub_username}/${dockerhub_image_name}:$${{ github.run_id }}
+  
+  kubescape:
+    runs-on: ubuntu-latest
+    needs: docker
+    steps:
+      - uses: actions/checkout@v3
+      - uses: kubescape/github-action@main
+        continue-on-error: true
+        with:
+          format: sarif
+          outputFile: results.sarif
+          files: "manifest/*.yaml"
+
+  deployk8s:
+    name: Deployk8s
+    runs-on: ubuntu-latest
+    needs: kubescape
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions-hub/kubectl@master
+      env:
+        KUBE_TOKEN: $${{ secrets.KUBE_TOKEN }}
+        KUBE_HOST: $${{ secrets.KUBE_HOST }}
+        KUBE_CERTIFICATE: $${{ secrets.KUBE_CERTIFICATE }}
+      with:
+        # First deployment
+        args: apply -f manifest/*.yaml
+        # First deployment without checking API CA certificate
+        # args: --insecure-skip-tls-verify apply -f manifest/*.yaml
+        # Used if previous deployment exists
+        # args: --insecure-skip-tls-verify set image deployment/${app_name}-deployment  ${app_name}=${dockerhub_username}/${dockerhub_image_name}:$${{ github.run_id }}
+        # args: set image deployment/${app_name}-deployment ${app_name}=${dockerhub_username}/${dockerhub_image_name}:$${{ github.run_id }}

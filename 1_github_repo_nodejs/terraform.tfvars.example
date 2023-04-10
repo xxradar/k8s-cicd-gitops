@@ -1,0 +1,9 @@
+# Change to your own AWS variables for deployment with Terraform
+access_key = "xxx"
+secret_key = "xxx"
+
+# Change to your own Github token for deployment with Terraform
+token = "ghp_xxxx"
+
+# Dockerhub variables
+dockerhub_token    = "dckr_xxxx"
